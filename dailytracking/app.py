@@ -1,3 +1,4 @@
+import hmac
 import io
 import urllib.request
 import pandas as pd
@@ -5,6 +6,34 @@ import streamlit as st
 import yfinance as yf
 
 st.set_page_config(page_title="全球债市 × 美股风险追踪", layout="wide")
+
+
+# ---------- 密码门禁 ----------
+# 密码保存在 Streamlit Cloud 的 Secrets（Manage app → Settings → Secrets），不进代码仓库：
+#   password = "你的密码"
+def check_password() -> bool:
+    if st.session_state.get("auth_ok"):
+        return True
+    expected = st.secrets.get("password")
+    if not expected:
+        st.error("未配置访问密码：请在 Secrets 中设置 password。")
+        return False
+
+    def _submit():
+        ok = hmac.compare_digest(st.session_state.get("pw_input", ""), str(expected))
+        st.session_state["auth_ok"] = ok
+        st.session_state["auth_failed"] = not ok
+        st.session_state.pop("pw_input", None)  # 不在会话中保留明文
+
+    st.text_input("访问密码", type="password", key="pw_input", on_change=_submit)
+    if st.session_state.get("auth_failed"):
+        st.error("密码错误")
+    return False
+
+
+if not check_password():
+    st.stop()
+
 st.title("全球债市抛售 × 美股风险追踪")
 st.caption("数据：FRED / Yahoo Finance，每小时缓存刷新。仅供研究参考，不构成投资建议。")
 
@@ -14,10 +43,12 @@ def fred(series_id: str) -> pd.Series:
     url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"
     raw = urllib.request.urlopen(url, timeout=20).read().decode()
     df = pd.read_csv(io.StringIO(raw), na_values=".")
-    df.iloc[:, 0] = pd.to_datetime(df.iloc[:, 0])
-    s = df.set_index(df.columns[0]).iloc[:, 0].astype(float)
-    s.index = pd.to_datetime(s.index)
-    s.name = series_id
+    # pandas 3.x: 第一列默认是 string dtype，不能原地写入 datetime，改为新建 Series
+    s = pd.Series(
+        pd.to_numeric(df.iloc[:, 1], errors="coerce").to_numpy(),
+        index=pd.to_datetime(df.iloc[:, 0]),
+        name=series_id,
+    )
     return s.tail(120)
 
 

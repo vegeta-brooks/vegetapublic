@@ -18,4 +18,15 @@ Streamlit 应用，展示最近 20 个交易日的：
 3. Main file path 填 `dailytracking/app.py`
 4. Deploy，拿到网址后在手机浏览器“添加到主屏幕”
 
+## 访问密码
+
+应用启动时要求输入密码。密码不放在仓库里，而是配置在 Streamlit Cloud：
+Manage app → Settings → Secrets，填入：
+
+```toml
+password = "你的密码"
+```
+
+保存后应用会自动重启生效。
+
 > 仅供研究参考，不构成投资建议。
